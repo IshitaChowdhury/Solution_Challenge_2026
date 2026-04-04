@@ -1,25 +1,6 @@
 import { useMemo, useState } from "react";
-
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
-
-const skillOptions = ["Medical", "Teaching", "Food", "Rescue", "Logistics", "General"];
-const cityOptions = [
-  "Kolkata",
-  "Delhi",
-  "Mumbai",
-  "Chennai",
-  "Pune",
-  "Hyderabad",
-  "Bangalore",
-  "Ahmedabad"
-];
-
-const loadingSteps = [
-  "Analyzing need...",
-  "Detecting urgency...",
-  "Matching volunteer...",
-  "Generating insights..."
-];
+import { API_BASE_URL } from "./api";
+import { cityOptions, loadingSteps, skillOptions } from "./options";
 
 function App() {
   const [page, setPage] = useState("home");
@@ -184,6 +165,7 @@ function App() {
 
       const fullResult = {
         ...data,
+        volunteers: Array.isArray(data.volunteers) ? data.volunteers : data.volunteer ? [data.volunteer] : [],
         volunteer: data.volunteer || data.assignedVolunteer || null,
         sourceText: ngoForm.text,
         sourceLocation: ngoForm.location,
@@ -286,7 +268,7 @@ function App() {
             <article className="problem-card">
               <div className="step-number">2</div>
               <h3>AI-Powered Analysis</h3>
-              <p>Gemini and our ML models analyze urgency levels, categorize the need, and generate actionable insights. Real-time processing ensures no time is wasted.</p>
+              <p>Gemini analyzes urgency levels, categorizes the need, and generates actionable insights. Real-time processing ensures no time is wasted.</p>
             </article>
             <article className="problem-card">
               <div className="step-number">3</div>
@@ -445,18 +427,23 @@ function App() {
             </article>
 
             <article className="section-card">
-              <h3>Assigned Volunteer</h3>
-              {assignResult.volunteer ? (
+              <h3>Assigned Volunteer{assignResult.volunteers?.length > 1 ? "s" : ""}</h3>
+              {assignResult.volunteers?.length ? (
                 <>
-                  <p><strong>{assignResult.volunteer.name}</strong></p>
-                  <p>Skills: {(assignResult.volunteer.skills || []).join(", ")}</p>
-                  <p>Location: {assignResult.volunteer.location}</p>
-                  <p>Phone: {assignResult.volunteer.phone || "N/A"}</p>
-                  <p>Email: {assignResult.volunteer.email || "N/A"}</p>
-                  <div className="hero-actions">
-                    <a className="primary-btn" href={assignResult.volunteer.phone ? `tel:${assignResult.volunteer.phone}` : "#"}>Call</a>
-                    <a className="secondary-btn" href={assignResult.volunteer.email ? `mailto:${assignResult.volunteer.email}` : "#"}>Email</a>
-                  </div>
+                  {assignResult.volunteers.map((volunteer, index) => (
+                    <div key={`${volunteer.email || volunteer.phone || volunteer.name}-${index}`}>
+                      <p><strong>{volunteer.name}</strong></p>
+                      <p>Skills: {(volunteer.skills || []).join(", ")}</p>
+                      <p>Location: {volunteer.location}</p>
+                      <p>Phone: {volunteer.phone || "N/A"}</p>
+                      <p>Email: {volunteer.email || "N/A"}</p>
+                      <div className="hero-actions">
+                        <a className="primary-btn" href={volunteer.phone ? `tel:${volunteer.phone}` : "#"}>Call</a>
+                        <a className="secondary-btn" href={volunteer.email ? `mailto:${volunteer.email}` : "#"}>Email</a>
+                      </div>
+                      {index < assignResult.volunteers.length - 1 ? <hr /> : null}
+                    </div>
+                  ))}
                 </>
               ) : (
                 <p>No volunteer matched yet.</p>

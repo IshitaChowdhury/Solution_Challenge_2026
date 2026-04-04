@@ -8,11 +8,7 @@ const {
   findBestVolunteer,
   getAllVolunteers
 } = require("./data/volunteers");
-const { getUrgencyFromFlask } = require("./services/aiService");
-const {
-  analyzeNeedWithGemini,
-  buildFallbackAnalysis
-} = require("./services/geminiService");
+const { analyzeNeedWithGemini } = require("./services/geminiService");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -20,11 +16,17 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", volunteers: getAllVolunteers().length });
+app.get("/health", async (_req, res) => {
+  try {
+    const volunteers = await getAllVolunteers();
+    res.json({ status: "ok", volunteers: volunteers.length });
+  } catch (error) {
+    console.error("Health check failed:", error.message);
+    res.status(500).json({ status: "error", error: error.message });
+  }
 });
 
-app.post("/add-volunteer", (req, res) => {
+app.post("/add-volunteer", async (req, res) => {
   const { name, skill, skills, location, phone, email } = req.body || {};
 
   if (!name || !(skill || (Array.isArray(skills) && skills.length)) || !location || !phone || !email) {
@@ -33,13 +35,19 @@ app.post("/add-volunteer", (req, res) => {
     });
   }
 
-  const createdVolunteer = addVolunteer({ name, skill, skills, location, phone, email });
+  try {
+    const createdVolunteer = await addVolunteer({ name, skill, skills, location, phone, email });
+    const allVolunteers = await getAllVolunteers();
 
-  return res.status(201).json({
-    message: "Volunteer added successfully",
-    volunteer: createdVolunteer,
-    totalVolunteers: getAllVolunteers().length
-  });
+    return res.status(201).json({
+      message: "Volunteer added successfully",
+      volunteer: createdVolunteer,
+      totalVolunteers: allVolunteers.length
+    });
+  } catch (error) {
+    console.error("Add volunteer failed:", error.message);
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 app.post("/assign", async (req, res) => {
@@ -54,8 +62,9 @@ app.post("/assign", async (req, res) => {
     });
   }
 
-  const matchResult = findBestVolunteer(requiredSkill, location);
+  const matchResult = await findBestVolunteer(requiredSkill, location);
   const assignedVolunteer = matchResult.volunteer;
+  const matchedVolunteers = Array.isArray(matchResult.volunteers) ? matchResult.volunteers : [];
 
   let analysis;
 
@@ -64,17 +73,10 @@ app.post("/assign", async (req, res) => {
   } catch (error) {
     console.error("Gemini analysis failed:", error.message);
 
-    const fallbackUrgency = await getUrgencyFromFlask(description);
-    const fallbackCategory =
-      String(requiredSkill).trim() ||
-      "General";
-
-    analysis = buildFallbackAnalysis(
-      description,
-      fallbackUrgency,
-      fallbackCategory,
-      assignedVolunteer
-    );
+    return res.status(502).json({
+      error: "Gemini analysis failed. Please try again.",
+      details: error.message
+    });
   }
 
   const volunteerResponse = assignedVolunteer
@@ -87,10 +89,19 @@ app.post("/assign", async (req, res) => {
       }
     : null;
 
+  const volunteersResponse = matchedVolunteers.map((volunteer) => ({
+    name: volunteer.name,
+    skills: volunteer.skills || [volunteer.skill || "General"],
+    location: volunteer.location,
+    phone: volunteer.phone,
+    email: volunteer.email
+  }));
+
   return res.json({
     urgency: analysis.urgency,
     category: analysis.category,
     volunteer: volunteerResponse,
+    volunteers: volunteersResponse,
     summary: analysis.summary,
     matchMessage: matchResult.message,
     assignedVolunteer: assignedVolunteer

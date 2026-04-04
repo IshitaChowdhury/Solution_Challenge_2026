@@ -1,4 +1,8 @@
-const volunteers = [
+const { getFirestore } = require("../services/firebaseService");
+
+const VOLUNTEERS_COLLECTION = "volunteers";
+
+const defaultVolunteers = [
   { name: "Rahul Sharma", skill: "Medical", location: "Kolkata", phone: "9876543210", email: "rahul.sharma@gmail.com" },
   { name: "Ananya Das", skill: "Teaching", location: "Kolkata", phone: "9123456780", email: "ananya.das@gmail.com" },
   { name: "Amit Verma", skill: "Food", location: "Delhi", phone: "9012345678", email: "amit.verma@gmail.com" },
@@ -11,12 +15,59 @@ const volunteers = [
   { name: "Pooja Jain", skill: "Rescue", location: "Jaipur", phone: "9887766554", email: "pooja.jain@gmail.com" }
 ];
 
+let seeded = false;
+
 function normalize(value) {
   return String(value || "").trim().toLowerCase();
 }
 
-function getAllVolunteers() {
-  return volunteers;
+function getCollection() {
+  const db = getFirestore();
+  return db.collection(VOLUNTEERS_COLLECTION);
+}
+
+function normalizeVolunteer(rawVolunteer) {
+  const skills = toSkillsArray(rawVolunteer.skills || rawVolunteer.skill);
+
+  return {
+    id: String(rawVolunteer.id || "").trim() || undefined,
+    name: String(rawVolunteer.name || "").trim(),
+    skills,
+    skill: skills[0] || "General",
+    location: String(rawVolunteer.location || "").trim(),
+    phone: String(rawVolunteer.phone || "").trim(),
+    email: String(rawVolunteer.email || "").trim()
+  };
+}
+
+async function ensureSeedData() {
+  if (seeded) {
+    return;
+  }
+
+  const collection = getCollection();
+  const snapshot = await collection.limit(1).get();
+
+  if (snapshot.empty) {
+    const batch = collection.firestore.batch();
+
+    for (const volunteer of defaultVolunteers) {
+      const docRef = collection.doc();
+      const normalized = normalizeVolunteer({ ...volunteer, id: docRef.id });
+      batch.set(docRef, normalized);
+    }
+
+    await batch.commit();
+  }
+
+  seeded = true;
+}
+
+async function getAllVolunteers() {
+  await ensureSeedData();
+
+  const snapshot = await getCollection().get();
+  return snapshot.docs.map((doc) => normalizeVolunteer({ ...doc.data(), id: doc.id }));
 }
 
 function toSkillsArray(value) {
@@ -28,20 +79,14 @@ function toSkillsArray(value) {
   return oneSkill ? [oneSkill] : [];
 }
 
-function addVolunteer(volunteer) {
-  const skills = toSkillsArray(volunteer.skills || volunteer.skill);
-  const entry = {
-    id: Date.now(),
-    name: volunteer.name.trim(),
-    skills,
-    location: volunteer.location.trim(),
-    phone: String(volunteer.phone || "").trim(),
-    email: String(volunteer.email || "").trim()
-  };
+async function addVolunteer(volunteer) {
+  await ensureSeedData();
 
-  entry.skill = entry.skills[0] || "General";
+  const collection = getCollection();
+  const docRef = collection.doc();
+  const entry = normalizeVolunteer({ ...volunteer, id: docRef.id });
 
-  volunteers.push(entry);
+  await docRef.set(entry);
   return entry;
 }
 
@@ -64,7 +109,28 @@ function calculateScore(volunteer, requiredSkill, location) {
   return score;
 }
 
-function findBestVolunteer(requiredSkill, location) {
+async function findBestVolunteer(requiredSkill, location) {
+  const volunteers = await getAllVolunteers();
+  const targetSkill = normalize(requiredSkill);
+  const targetLocation = normalize(location);
+  const exactMatches = volunteers.filter((volunteer) => {
+    const volunteerSkills = toSkillsArray(volunteer.skills || volunteer.skill).map(normalize);
+    return volunteerSkills.includes(targetSkill) && normalize(volunteer.location) === targetLocation;
+  });
+
+  if (exactMatches.length > 0) {
+    return {
+      volunteer: exactMatches[0],
+      volunteers: exactMatches,
+      score: 4,
+      exactMatch: true,
+      message:
+        exactMatches.length > 1
+          ? `Found ${exactMatches.length} exact volunteer matches`
+          : "Exact match found"
+    };
+  }
+
   let bestVolunteer = null;
   let bestScore = -1;
 
@@ -76,18 +142,12 @@ function findBestVolunteer(requiredSkill, location) {
     }
   }
 
-  const exactMatch =
-    !!bestVolunteer &&
-    toSkillsArray(bestVolunteer.skills || bestVolunteer.skill).map(normalize).includes(normalize(requiredSkill)) &&
-    normalize(bestVolunteer.location) === normalize(location);
-
   return {
     volunteer: bestScore > 0 ? bestVolunteer : null,
+    volunteers: bestScore > 0 && bestVolunteer ? [bestVolunteer] : [],
     score: bestScore,
-    exactMatch,
-    message: exactMatch
-      ? "Exact match found"
-      : bestScore > 0
+    exactMatch: false,
+    message: bestScore > 0
       ? "No exact match found. Best available volunteer assigned"
       : "No exact match found"
   };

@@ -15,15 +15,13 @@ __pycache__/
 !.env.example
 backend/.env
 frontend/.env
+backend/service-account.json
 
 # Build and runtime artifacts
 dist/
 build/
 coverage/
 *.log
-
-# ML artifacts
-ai-model/model/*.pkl
 
 # OS / editor files
 .DS_Store

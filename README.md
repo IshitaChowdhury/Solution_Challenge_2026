@@ -1,95 +1,45 @@
-# Volnix AI - Data-Driven Volunteer Coordination Platform
+# Volnix AI
 
-Simple MVP stack:
+Volnix AI is a volunteer coordination platform for NGOs. It analyzes incoming needs with Gemini and matches volunteers based on skill and location, with data stored in Firebase Firestore.
+
+## Tech Stack
 
 - Frontend: React
 - Backend: Node.js + Express
-- AI model: Python + scikit-learn
-- AI API: Flask
-- Storage: in-memory arrays only
-- Gemini: used for short summary generation
-- Gemini: primary analyzer for urgency, category, and summary
+- AI: Google Gemini API
+- Database: Firebase Firestore
 
-Backend note:
+## Prerequisites
 
-- Use Node.js 18 or newer so the backend can call `fetch` without extra packages.
+- Node.js 18+
+- Firebase service account credentials
+- Gemini API key
 
-## Folder structure
+## Run Locally
 
-- `frontend/` - React UI
-- `backend/` - Node.js API and volunteer store
-- `ai-model/` - model training script and Flask prediction API
+1. Start backend:
 
-## Run order
+```bash
+cd backend
+npm install
+npm start
+```
 
-1. Train the model:
+2. Start frontend:
 
-   ```bash
-   cd ai-model
-   C:/Users/ISHITA/AppData/Local/Programs/Python/Python310/python.exe train_model.py
-   ```
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-2. Start the Flask API:
+## Backend Environment
 
-   ```bash
-   cd ai-model
-   C:/Users/ISHITA/AppData/Local/Programs/Python/Python310/python.exe app.py
-   ```
-
-3. Start the Node backend:
-
-   ```bash
-   cd backend
-   npm install
-   npm start
-   ```
-
-   Add `backend/.env` before starting if you want Gemini summaries.
-
-   Install the Gemini SDK if you are updating an existing backend:
-
-   ```bash
-   npm install @google/generative-ai
-   ```
-
-4. Start the React frontend:
-
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-
-## Environment variables
-
-Create `backend/.env` with:
+Create `backend/.env`:
 
 ```bash
 PORT=4000
-FLASK_AI_URL=http://localhost:5000/predict
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-1.5-flash
+GEMINI_MODEL=gemini-2.5-flash
+FIREBASE_SERVICE_ACCOUNT_PATH=./service-account.json
 ```
-
-If `GEMINI_API_KEY` is missing, the backend falls back to the Flask ML model for urgency and uses a simple local category/summary fallback.
-
-You will need the Gemini API key when the backend processes `POST /assign`. That is the point where Gemini becomes the primary analyzer for urgency, category, and summary. Without the key, the Flask model remains the backup.
-
-## Example response
-
-```json
-{
-   "urgency": "High",
-   "category": "Medical",
-   "assignedVolunteer": {
-      "id": 1,
-      "name": "Rahul Sharma",
-      "skill": "Medical",
-      "location": "Kolkata"
-   },
-   "summary": "The request is urgent and medical in nature. Rahul Sharma is assigned based on the best skill and location match."
-}
-```
-## Sample API requests
-
-Open [api-samples.http](api-samples.http) for ready-to-run requests for `add-volunteer` and `assign`.
