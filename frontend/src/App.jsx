@@ -497,7 +497,6 @@ function App() {
         
         <div className="footer-credits">
           <p>© 2026 Volnix AI. All rights reserved.</p>
-          <p>Built for Google Solution Challenge 2026.</p>
           <p>Powered by Google AI (Gemini)</p>
         </div>
       </footer>
